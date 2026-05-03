@@ -1,0 +1,11 @@
+name: Security Review
+
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  security:
+    uses: GagauzSergii/security-agent/.github/workflows/reusable-security-review.yml@main
+    secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
