@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Focus Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-wrapper">
+
+    <!-- Auth View -->
+    <div id="auth-view" class="auth-container hidden">
+      <div class="auth-title" id="auth-title">Welcome Back</div>
+      
+      <!-- Login -->
+      <form id="login-form" class="auth-form" onsubmit="handleAuth(event, 'login')">
+        <input type="text" id="login-username" placeholder="Username" required>
+        <input type="password" id="login-password" placeholder="Password" required>
+        <div id="login-error" class="error-msg"></div>
+        <button type="submit">Log In</button>
+        <div class="auth-switch" onclick="switchAuthTab('register')">Don't have an account? Sign up</div>
+      </form>
+
+      <!-- Register -->
+      <form id="register-form" class="auth-form hidden" onsubmit="handleAuth(event, 'register')">
+        <input type="text" id="register-username" placeholder="Username" required>
+        <input type="password" id="register-password" placeholder="Password" required>
+        <div id="register-error" class="error-msg"></div>
+        <button type="submit">Sign Up</button>
+        <div class="auth-switch" onclick="switchAuthTab('login')">Already have an account? Log in</div>
+      </form>
+    </div>
+
+    <!-- Main Tracker View -->
+    <div id="app-view" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
+      
+      <!-- Header -->
+      <header class="app-header">
+        <div class="brand">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+          </svg>
+          Pomodoro
+        </div>
+        <div class="streak-wrapper">
+          <div class="streak-pill">🔥 <span id="streak-val">0</span> day streak</div>
+          <button class="logout-btn" id="logout-btn" title="Logout">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Scrollable body -->
+      <div class="app-content">
+        
+        <!-- Tabs -->
+        <div class="mode-tabs">
+          <div class="tab active" id="tab-focus" onclick="setMode('focus')">Focus</div>
+          <div class="tab" id="tab-short" onclick="setMode('shortBreak')">Short break</div>
+          <div class="tab" id="tab-long" onclick="setMode('longBreak')">Long break</div>
+        </div>
+
+        <!-- Timer -->
+        <div class="timer-wrapper">
+          <svg viewBox="0 0 220 220">
+            <circle cx="110" cy="110" r="100" class="ring-bg"></circle>
+            <circle cx="110" cy="110" r="100" class="ring-progress" id="timer-progress"></circle>
+          </svg>
+          <div class="timer-text">
+            <input type="text" class="time-val" id="time-display" value="25:00" title="Click to manually edit time">
+            <div class="mode-label" id="mode-label">focus session</div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+          <button class="btn-icon secondary" onclick="pauseTimer()" title="Pause">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          <button class="btn-icon primary" onclick="startTimer()" id="play-btn" title="Start">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" style="margin-left: 4px;"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="btn-icon secondary" onclick="resetTimer()" title="Reset">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
+
+        <!-- Metrics Cards -->
+        <div class="metrics">
+          <div class="metric">
+            <div class="m-val" id="val-sessions">0</div>
+            <div class="m-lbl">sessions<br>today</div>
+          </div>
+          <div class="metric">
+            <div class="m-val" id="val-minutes">0h00</div>
+            <div class="m-lbl">focused</div>
+          </div>
+          <div class="metric" id="metric-goal">
+            <div class="m-val" id="val-goal">4</div>
+            <div class="m-lbl">day goal</div>
+          </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div class="section-title">This week</div>
+        <div class="bar-chart" id="chart-bars">
+           <!-- Dynamic Bars -->
+        </div>
+        <div class="chart-labels" id="chart-labels">
+           <!-- Dynamic Labels -->
+        </div>
+
+        <!-- Next Tasks -->
+        <div class="task-input-box">
+          <input type="text" id="task-name" class="task-input" placeholder="What are you working on? (Press Enter to log...)">
+        </div>
+        <div class="task-list" id="history-list">
+          <!-- Dynamic Task History -->
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:8000';
+    let token = localStorage.getItem('token');
+    
+    // Timer state
+    const MODES = {
+       focus: { label: 'focus session', time: 25 * 60 },
+       shortBreak: { label: 'short break', time: 5 * 60 },
+       longBreak: { label: 'long break', time: 15 * 60 }
+    };
+    
+    let currentMode = 'focus';
+    let timeLeft = MODES[currentMode].time;
+    let timerInterval = null;
+    let currentSessionStartedAt = null;
+    
+    const CIRCUMFERENCE = 2 * Math.PI * 100; // r=100
+    const timeDisplay = document.getElementById('time-display');
+    const timerProgress = document.getElementById('timer-progress');
+    const authView = document.getElementById('auth-view');
+    const appView = document.getElementById('app-view');
+    
+    // Auth wrap
+    async function apiFetch(endpoint, options = {}) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers: { ...headers, ...options.headers } });
+      if (res.status === 401 && !endpoint.includes('/auth/')) {
+        logout();
+        throw new Error('Unauthorized');
+      }
+      return res.json();
+    }
+
+    function checkAuth() {
+      if (token) {
+        authView.classList.add('hidden');
+        appView.classList.remove('hidden');
+        loadDashboardData();
+      } else {
+        authView.classList.remove('hidden');
+        appView.classList.add('hidden');
+      }
+    }
+
+    function switchAuthTab(tab) {
+      if (tab === 'login') {
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('register-form').classList.add('hidden');
+        document.getElementById('auth-title').innerText = "Welcome Back";
+      } else {
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('register-form').classList.remove('hidden');
+        document.getElementById('auth-title').innerText = "Create Account";
+      }
+    }
+
+    async function handleAuth(e, type) {
+      e.preventDefault();
+      const userStr = document.getElementById(`${type}-username`).value;
+      const passStr = document.getElementById(`${type}-password`).value;
+      const errBox = document.getElementById(`${type}-error`);
+      errBox.innerText = '';
+      
+      try {
+        const res = await apiFetch(`/auth/${type}`, {
+          method: 'POST',
+          body: JSON.stringify({ username: userStr, password: passStr })
+        });
+        
+        if (res.error) {
+          errBox.innerText = res.error;
+          return;
+        }
+        
+        if (type === 'login') {
+          token = res.data.access_token;
+          localStorage.setItem('token', token);
+          checkAuth();
+        } else {
+          switchAuthTab('login');
+          document.getElementById('login-username').value = userStr;
+        }
+      } catch (err) {
+        errBox.innerText = 'Server error';
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      token = null;
+      if (timerInterval) pauseTimer();
+      checkAuth();
+    }
+    document.getElementById('logout-btn').addEventListener('click', logout);
+
+
+    // Timer Functions
+    function setMode(mode) {
+       if (timerInterval) pauseTimer();
+       currentMode = mode;
+       document.getElementById('tab-focus').classList.remove('active');
+       document.getElementById('tab-short').classList.remove('active');
+       document.getElementById('tab-long').classList.remove('active');
+       
+       if (mode === 'focus') document.getElementById('tab-focus').classList.add('active');
+       if (mode === 'shortBreak') document.getElementById('tab-short').classList.add('active');
+       if (mode === 'longBreak') document.getElementById('tab-long').classList.add('active');
+       
+       document.getElementById('mode-label').innerText = MODES[mode].label;
+       timeLeft = MODES[mode].time;
+       timeDisplay.disabled = false;
+       setProgress(timeLeft);
+    }
+    
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const s = (sec % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+    }
+
+    function setProgress(sec) {
+      timeDisplay.value = formatTime(sec);
+      const total = MODES[currentMode].time;
+      const dashoffset = CIRCUMFERENCE - (sec / total) * CIRCUMFERENCE;
+      timerProgress.style.strokeDashoffset = isNaN(dashoffset) ? 0 : dashoffset;
+    }
+
+    // Manual time editing
+    timeDisplay.addEventListener('change', (e) => {
+       let val = e.target.value.trim();
+       if (!val.includes(':') && !isNaN(val) && val.length > 0) {
+           val = `${val}:00`; // treat as minutes if no colon
+       }
+       const parts = val.split(':');
+       const m = parseInt(parts[0]) || 0;
+       const s = parseInt(parts[1]) || 0;
+       let totalSecs = (m * 60) + s;
+       
+       if (totalSecs <= 0) totalSecs = 25 * 60; // fallback if invalid
+       MODES[currentMode].time = totalSecs;
+       timeLeft = totalSecs;
+       setProgress(timeLeft);
+    });
+
+    function startTimer() {
+      if (timerInterval) return;
+      currentSessionStartedAt = new Date();
+      timeDisplay.disabled = true; // prevent edit while running
+      
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        setProgress(timeLeft);
+        if (timeLeft <= 0) {
+          completeSession();
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      timeDisplay.disabled = false;
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      timeLeft = MODES[currentMode].time;
+      setProgress(timeLeft);
+    }
+
+    async function completeSession() {
+      pauseTimer();
+      const isFocus = currentMode === 'focus';
+      
+      const taskInput = document.getElementById('task-name');
+      const taskName = taskInput.value.trim() || (isFocus ? "Focus Session" : "Break");
+      
+      // Calculate minutes for backend schema (requires integer)
+      const durRaw = MODES[currentMode].time / 60;
+      const dur = Math.max(1, Math.round(durRaw));
+      
+      // We only log focus sessions to backend historically
+      if (isFocus) {
+         try {
+            const startRes = await apiFetch('/sessions/start', {
+              method: 'POST', body: JSON.stringify({ task_name: taskName, duration_minutes: dur })
+            });
+            if (!startRes.error) {
+              await apiFetch(`/sessions/${startRes.data.id}/stop`, { method: 'POST' });
+              loadDashboardData();
+            }
+         } catch(e) {}
+      }
+      resetTimer();
+    }
+    
+    // Quick enter functionality
+    document.getElementById('task-name').addEventListener('keydown', (e) => {
+       if (e.key === 'Enter') {
+          document.getElementById('task-name').blur();
+          if (!timerInterval) startTimer();
+       }
+    });
+
+    // Dashboard loading
+    async function loadDashboardData() {
+      try {
+        const statsRes = await apiFetch('/sessions/stats');
+        if (!statsRes.error) {
+          const stats = statsRes.data;
+          document.getElementById('val-sessions').innerText = stats.total_sessions_today;
+          
+          let goal = parseInt(document.getElementById('val-goal').innerText) || 4;
+          if (stats.total_sessions_today >= goal && stats.total_sessions_today > 0) {
+             document.getElementById('metric-goal').classList.add('goal-reached');
+          } else {
+             document.getElementById('metric-goal').classList.remove('goal-reached');
+          }
+          
+          let m = stats.total_minutes_today;
+          let hText = Math.floor(m/60) > 0 ? `${Math.floor(m/60)}h${(m%60).toString().padStart(2,'0')}` : `${m}m`;
+          document.getElementById('val-minutes').innerText = hText;
+          
+          document.getElementById('streak-val').innerText = stats.current_streak_days;
+          
+          // Draw chart
+          const pd = stats.sessions_per_day;
+          const maxCount = Math.max(...pd.map(d=>d.count), 1);
+          const daysOfWeek = ['S','M','T','W','T','F','S'];
+          
+          let bars = '', lbls = '';
+          const todayStr = new Date().toISOString().split('T')[0];
+          
+          pd.forEach(day => {
+            const height = Math.max((day.count / maxCount) * 80, 5); // min 5px height
+            const bg = (day.date === todayStr) ? 'var(--primary)' : 'var(--panel-bg)';
+            bars += `<div style="width: 10%; height: ${height}px; background: ${bg}; border-radius: 4px;"></div>`;
+            
+            const dt = new Date(day.date);
+            lbls += `<div class="c-lbl">${daysOfWeek[dt.getUTCDay()]}</div>`;
+          });
+          
+          document.getElementById('chart-bars').innerHTML = bars;
+          document.getElementById('chart-labels').innerHTML = lbls;
+        }
+
+        const sessionsRes = await apiFetch('/sessions');
+        if (!sessionsRes.error) {
+           const today = new Date().toISOString().split('T')[0];
+           const todaySess = sessionsRes.data.filter(s => s.start_time.startsWith(today));
+           
+           const groups = {};
+           todaySess.forEach(s => {
+             const n = s.task_name || "Focus Session";
+             groups[n] = (groups[n] || 0) + 1;
+           });
+           
+           const listHtml = Object.entries(groups).map(([name, count]) => {
+              return `
+                <div class="task-item">
+                  <div class="task-name">${name}</div>
+                  <div class="task-pill">${count} pomodoros</div>
+                </div>
+              `;
+           }).join('');
+           
+           document.getElementById('history-list').innerHTML = listHtml;
+        }
+      } catch (e) { console.warn(e); }
+    }
+
+    // Init dasharray config for timer ring
+    timerProgress.style.strokeDasharray = CIRCUMFERENCE;
+    setProgress(timeLeft);
+    checkAuth();
+  </script>
+</body>
+</html>

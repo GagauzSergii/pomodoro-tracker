@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Stats - Pomodoro Tracker</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Stats specific local styles for the SVG chart */
+    .bar-chart {
+      width: 100%;
+      height: 250px;
+      display: flex;
+      align-items: flex-end;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="index.html" class="brand">Pomodoro</a>
+    <div class="nav-links" id="nav-links">
+      <a href="index.html">Back to timer</a>
+      <a href="#" id="logout-btn">Logout</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="stats-container">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="val-sessions">0</div>
+          <div class="metric-label">Sessions Today</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="val-minutes">0</div>
+          <div class="metric-label">Total Minutes Focused</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="val-streak">0</div>
+          <div class="metric-label">Current Streak (Days)</div>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Sessions (Last 7 Days)</div>
+        <div class="bar-chart" id="svg-chart-container">
+          <!-- pure SVG injected via JS -->
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-title">Today's Sessions</div>
+        <ul class="history-list" id="history-list">
+          <!-- Session items injected via JS -->
+          <li class="history-item">
+            <div class="history-meta" style="width: 100%; text-align: center;">Loading...</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const API_URL = 'http://localhost:8000';
+    let token = localStorage.getItem('token');
+    
+    if (!token) {
+      window.location.href = 'index.html';
+    }
+
+    async function apiFetch(endpoint, options = {}) {
+      const headers = { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
+      const config = { ...options, headers: { ...headers, ...options.headers } };
+      const response = await fetch(`${API_URL}${endpoint}`, config);
+      
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        window.location.href = 'index.html';
+        throw new Error('Unauthorized');
+      }
+      return response.json();
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      localStorage.removeItem('token');
+      window.location.href = 'index.html';
+    });
+
+    function drawChart(sessionsPerDay) {
+      // Find max count to scale bars
+      const maxCount = Math.max(...sessionsPerDay.map(d => d.count), 1);
+      
+      const width = document.getElementById('svg-chart-container').clientWidth;
+      const height = 250;
+      const barWidth = Math.min((width / 7) - 20, 50);
+      const gap = (width - (7 * barWidth)) / 8;
+      
+      let svgHtml = `<svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}">`;
+      
+      sessionsPerDay.forEach((day, index) => {
+        const barHeight = (day.count / maxCount) * (height - 40); // 40px buffer for text
+        const x = gap + index * (barWidth + gap);
+        const y = height - barHeight - 20; // 20px buffer at bottom for labels
+        
+        // Date formatting (MM/DD)
+        const dateObj = new Date(day.date);
+        const dateLabel = `${dateObj.getMonth()+1}/${dateObj.getDate()}`;
+        
+        svgHtml += `
+          <!-- Bar -->
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="var(--primary)" rx="4" />
+          
+          <!-- Count Label (Top) -->
+          <text x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle" fill="var(--text-main)" font-size="12px" font-weight="600">${day.count}</text>
+          
+          <!-- Date Label (Bottom) -->
+          <text x="${x + barWidth/2}" y="${height - 5}" text-anchor="middle" fill="var(--text-muted)" font-size="10px">${dateLabel}</text>
+        `;
+      });
+      
+      svgHtml += `</svg>`;
+      document.getElementById('svg-chart-container').innerHTML = svgHtml;
+    }
+
+    async function loadData() {
+      try {
+        // Load aggregate stats
+        const statsRes = await apiFetch('/sessions/stats');
+        if (!statsRes.error) {
+          const stats = statsRes.data;
+          document.getElementById('val-sessions').innerText = stats.total_sessions_today;
+          document.getElementById('val-minutes').innerText = stats.total_minutes_today;
+          document.getElementById('val-streak').innerText = stats.current_streak_days;
+          
+          drawChart(stats.sessions_per_day);
+        }
+
+        // Load today's session history (using /sessions endpoint and filtering on frontend for demo simplicity, though could be backend)
+        const sessionsRes = await apiFetch('/sessions');
+        if (!sessionsRes.error) {
+          const listContainer = document.getElementById('history-list');
+          
+          // Filter for today
+          const today = new Date().toISOString().split('T')[0];
+          const todaySessions = sessionsRes.data.filter(s => s.start_time.startsWith(today));
+          
+          if (todaySessions.length === 0) {
+            listContainer.innerHTML = `
+              <li class="history-item">
+                <div class="history-meta" style="width: 100%; text-align: center;">No sessions yet today.</div>
+              </li>
+            `;
+          } else {
+            // Sort newest first
+            todaySessions.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+            
+            listContainer.innerHTML = todaySessions.map(s => {
+              const sTime = new Date(s.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              return `
+                <li class="history-item">
+                  <div class="history-task">${s.task_name || 'Focus Session'}</div>
+                  <div class="history-meta">${s.duration_minutes} min • ${sTime}</div>
+                </li>
+              `;
+            }).join('');
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load dashboard data", e);
+      }
+    }
+
+    // Run on load
+    loadData();
+    
+    // Redraw chart on window resize
+    window.addEventListener('resize', () => {
+      // basic debounce
+      clearTimeout(window.resizeTimer);
+      window.resizeTimer = setTimeout(() => {
+        loadData(); 
+      }, 250);
+    });
+  </script>
+</body>
+</html>

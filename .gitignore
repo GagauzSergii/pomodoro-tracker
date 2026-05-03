@@ -1,0 +1,21 @@
+cat > .gitignore << 'EOF'
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+
+# Database
+*.db
+
+# Mac
+.DS_Store
+
+# MCP instructions (workshop demo only)
+copilot-instructions.md
+EOF

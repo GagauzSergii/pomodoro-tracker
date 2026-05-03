@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "db-analyzer": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["tools/db-analyzer-mcp/server.py"]
+    }
+  }
+}
