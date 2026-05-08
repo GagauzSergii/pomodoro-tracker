@@ -15,7 +15,3 @@ __pycache__/
 
 # Mac
 .DS_Store
-
-# MCP instructions (workshop demo only)
-copilot-instructions.md
-EOF
