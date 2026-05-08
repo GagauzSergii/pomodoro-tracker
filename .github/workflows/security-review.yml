@@ -4,6 +4,10 @@ on:
   pull_request:
     branches: [main, master]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   security:
     uses: GagauzSergii/security-agent/.github/workflows/reusable-security-review.yml@main

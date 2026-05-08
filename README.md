@@ -20,3 +20,5 @@ A simple Pomodoro focus tracker web application using FastAPI, SQLAlchemy, Vanil
 
 3. **Open the frontend:**
    Open the `frontend/index.html` file directly in your web browser. There is no frontend server needed, though you can use any static server if preferred.
+# test # test
+# test # test
